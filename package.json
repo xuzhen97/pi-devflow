@@ -1,0 +1,47 @@
+{
+  "name": "pi-devflow",
+  "version": "0.1.0",
+  "description": "A lightweight, extensible development workflow package for Pi.",
+  "type": "module",
+  "license": "MIT",
+  "author": "xuzhen97",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xuzhen97/pi-devflow.git"
+  },
+  "homepage": "https://github.com/xuzhen97/pi-devflow#readme",
+  "bugs": {
+    "url": "https://github.com/xuzhen97/pi-devflow/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "coding-agent",
+    "developer-tools",
+    "workflow"
+  ],
+  "files": [
+    "extensions/",
+    "skills/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/index.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.84.3",
+    "typescript": "^5.9.3"
+  }
+}
