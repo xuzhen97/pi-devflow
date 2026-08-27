@@ -1,6 +1,6 @@
 ---
 name: code-flow-visualizer
-description: Analyze a codebase execution flow and generate an interactive HTML flow map. Use GitNexus or available code-intelligence tools to discover real symbols, callers, callees, files, and line numbers. Produce a simplified human-readable flow instead of dumping the full dependency graph. Every code node should preserve source metadata and support jumping to the corresponding file and line in VS Code.
+description: Analyze a codebase execution flow and generate an interactive HTML flow map. Use GitNexus or available code-intelligence tools to discover real symbols, callers, callees, files, and line numbers. Present the exact HTML output path for confirmation, then write the file immediately when confirmed. Produce a simplified human-readable flow instead of dumping the full dependency graph. Every code node should preserve source metadata and support jumping to the corresponding file and line in VS Code.
 ---
 
 # Code Flow Visualizer
@@ -69,9 +69,13 @@ Simplify into Semantic Flow
       ↓
 Generate Flow Model
       ↓
-Generate Interactive HTML
+Report Flow Scope + Exact HTML Path
       ↓
-Validate Source Links
+Request HTML Write Confirmation
+      ↓ confirmed
+Write Interactive HTML
+      ↓
+Validate HTML + Source Links
 ```
 
 ---
@@ -418,6 +422,40 @@ HTML 是展示层。
 
 ---
 
+# Mandatory HTML delivery gate
+
+本 Skill 的最终产物必须包含一个真实写入磁盘、可独立打开的 `.html` 文件；不能只在聊天中输出流程摘要、Mermaid 代码块或 HTML 片段。
+
+完成事实核验和 Flow Model 后、写文件前，必须向用户报告：
+
+- 流程标题、入口、终点和核心节点数量
+- 已确认的主路径与仍不确定的分支
+- 将要写入的**准确 HTML 路径**
+
+默认输出路径：
+
+```text
+<PROJECT_ROOT>/.tmp/code-flow-<topic>.html
+```
+
+用户指定路径时使用用户路径。`<topic>` 使用简短、安全的文件名；不要覆盖已有文件，除非用户明确同意。
+
+然后用一个封闭问题确认：
+
+```text
+流程事实已核验，准备写入 <exact-path>。是否生成交互式 HTML？（生成 / 暂不）
+```
+
+此确认只控制 HTML 写入：
+
+- 在用户确认前保持只读，不创建目录、不写临时 HTML。
+- `生成`、`确认`、`是`、`可以` 等直接肯定答复都视为授权。
+- 用户一旦确认，立即创建所需目录并写出 HTML；**不要再为同一个 HTML 重复询问确认，也不要另行要求 Spec、Plan 或实现确认**。
+- 用户拒绝或答复不明确时不写文件；不明确时只重新询问这个问题。
+- 若确认后输出路径或流程范围发生实质变化，先说明变化并重新确认。
+
+---
+
 # Step 8 — VS Code source navigation
 
 生成 HTML 时，代码节点必须支持打开 VS Code。
@@ -506,11 +544,17 @@ filePath:line
 
 # Step 9 — HTML interaction
 
-生成的 HTML 至少应包含：
+交互行为参考以下文件（只参考交互与布局，不复制其业务内容，也不形成运行时依赖）：
 
-### Flow Canvas
+```text
+file:///D:/OptiMinderHub/OptiMinder/.tmp/sl2000-3%E5%B9%B4%E5%AE%B9%E9%87%8F%E6%B5%8B%E7%AE%97%E4%B8%8E%E5%A4%9A%E5%AE%9E%E4%BE%8B%E9%83%A8%E7%BD%B2%E6%96%B9%E6%A1%88.html
+```
 
-展示：
+参考文件不可访问时，仍必须实现下面的交互契约。
+
+## Flow Canvas
+
+主视图使用横向或从上到下的 DAG，展示：
 
 ```text
 Entry
@@ -524,45 +568,81 @@ Repository
 External System
 ```
 
-### Node click
+## Full-screen zoom and pan
 
-单击节点：
+流程图必须提供明显的“全屏查看”入口，并实现与参考文件一致的核心体验：
 
-显示：
+- 全屏遮罩查看流程图
+- 鼠标滚轮以指针位置为中心缩放
+- 按住鼠标拖拽平移
+- `放大`、`缩小`、`适应窗口`、`1:1` 按钮
+- `Esc`、关闭按钮或点击遮罩关闭
+- 缩放范围必须有限制，避免图形消失或无限放大
+- 打开时自动适应窗口；窗口尺寸变化后仍可重新适应
 
-- Symbol
-- Type
-- File
-- Start line
+单击代码节点与打开全屏不得冲突：节点点击应停止事件冒泡并打开详情；点击画布空白处或专用按钮进入全屏。
+
+## Node details
+
+单击节点显示：
+
+- Symbol、Type
+- File、Start line、End line
 - Description
-- Callers
-- Callees
+- Callers、Callees
+- Confidence
+- 被语义压缩的内部调用（如有）
 
-### Open Code
+详情面板必须提供 `Open in VS Code`。文件路径本身也要显示，确保协议跳转不可用时仍可手动定位。
 
-提供：
+## Expand and filtering
 
-```text
-Open in VS Code
-```
-
-### Expand
-
-对于被语义压缩的节点：
-
-```text
-展开内部调用
-```
-
-### Filtering
-
-如果流程复杂，可以过滤：
+存在压缩节点时提供“展开内部调用”。仅当流程复杂时提供以下过滤，简单流程不要增加无效控件：
 
 - Business
 - Infrastructure
 - Async
 - Database
 - External
+
+隐藏节点时必须同时正确处理相关边，不能留下悬空连线。
+
+## Implementation constraints
+
+- HTML 优先使用内联 CSS、JavaScript 和 SVG，保持单文件可打开。
+- 除非确有必要，不依赖后端服务或新增前端依赖。
+- 所有按钮使用原生 `<button>`，提供可见焦点和准确文本或 `aria-label`。
+- HTML 中的数据来自 Flow Model；不要在 DOM 和脚本中维护两份互相漂移的流程事实。
+
+---
+
+# Theme requirements
+
+每个生成的 HTML 必须同时提供亮色和暗色主题：
+
+- 页面工具栏提供明确的主题切换按钮。
+- 首次打开使用 `prefers-color-scheme` 跟随系统主题。
+- 用户手动选择后保存到 `localStorage`，刷新后保持选择。
+- 页面背景、卡片、文字、边框、流程节点、连线、详情面板、全屏遮罩和缩放工具栏必须同步切换。
+- 两种主题都要保证文字、连线、焦点和节点类型之间有足够对比度。
+- 不允许只切换页面外壳而让流程图固定为另一种主题。
+
+优先通过 CSS custom properties 和根元素的 `data-theme="light|dark"` 实现，避免维护两套页面。
+
+---
+
+# Post-write validation
+
+写出 HTML 后必须实际在浏览器中打开；有 Playwright 或等价浏览器工具时优先自动检查，否则至少进行源码静态检查并明确说明限制。验证：
+
+1. 页面本地打开无阻断性脚本错误，流程节点与连线正常显示。
+2. 节点点击显示匹配 Flow Model 的详情，源码路径与行号准确。
+3. 全屏打开、滚轮缩放、拖拽、放大/缩小、适应、`1:1` 和 `Esc` 关闭可用。
+4. 亮色/暗色切换覆盖整个界面，刷新后保持手动选择；清除保存值后跟随系统主题。
+5. 过滤与展开不会产生悬空边或无法恢复的节点。
+6. `vscode://file` 链接使用真实绝对路径；无法启动 VS Code 时仍核对链接文本和目标格式。
+
+发现问题应直接修复并重新验证；只有输出路径或流程范围发生实质变化时才需要重新向用户确认。
 
 ---
 
@@ -572,7 +652,7 @@ Open in VS Code
 
 推荐：
 
-- 浅色或深色 IDE 风格
+- 默认支持亮色/暗色 IDE 风格切换
 - 横向或从上到下 DAG
 - 清晰的节点类型
 - 不使用大量装饰
@@ -727,27 +807,25 @@ Unknown
 
 # Output
 
-默认输出：
+每次使用本 Skill 都必须以写出交互式 HTML 为交付目标，无需用户额外说“生成 HTML”。默认交付：
 
 ```text
 1. 流程摘要
 2. 关键执行路径
-3. 交互 HTML
-4. 关键 Symbol 列表
-5. 未确认或值得继续调查的分支
+3. 关键 Symbol 列表
+4. 未确认或值得继续调查的分支
+5. 待写入的准确 HTML 路径
+6. 用户确认后生成的交互 HTML
 ```
 
-当用户明确要求 HTML 时：
+确认后必须生成一个独立可打开、尽量自包含的 `.html` 文件。完成时报告：
 
-生成一个独立可打开的：
+- HTML 的准确路径
+- 已验证的入口、核心节点数和源码链接数
+- 亮色/暗色主题与缩放交互的检查结果
+- 仍未确认的分支（没有则明确写“无”）
 
-```text
-code-flow.html
-```
-
-HTML 应尽量自包含。
-
-除非必要，不依赖后端服务。
+不要把聊天中的代码块当成交付文件。除非必要，不依赖后端服务。
 
 ---
 
@@ -815,6 +893,13 @@ VS Code
 - [ ] 尽可能保留 GitNexus UID
 - [ ] 复杂调用链已经语义压缩
 - [ ] 异步调用被正确表示
+- [ ] 写入前已展示准确路径并获得用户确认
+- [ ] 确认后已实际写出独立 HTML，而不是只输出代码块
 - [ ] HTML 节点可以查看源码位置
 - [ ] VS Code 链接使用真实路径和行号
+- [ ] 节点详情点击与全屏查看入口没有事件冲突
+- [ ] 全屏遮罩支持滚轮缩放、拖拽、适应窗口、1:1 和 Esc 关闭
+- [ ] 亮色/暗色主题可切换，首次跟随系统并记忆用户选择
+- [ ] 两种主题覆盖流程图、详情面板和缩放遮罩且可读
+- [ ] 过滤节点时相关边同步更新
 - [ ] 用户可以快速理解整个执行流程
