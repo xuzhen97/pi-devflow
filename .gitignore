@@ -1,6 +1,8 @@
 node_modules/
 dist/
 coverage/
+.tmp/
+.superpowers/
 *.log
 .DS_Store
 .env

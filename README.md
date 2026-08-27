@@ -1,100 +1,192 @@
 # Pi DevFlow
 
-一个面向 [Pi](https://pi.dev) 的轻量、可扩展开发工作流包。仓库当前提供最小可运行骨架，后续可逐步加入扩展、Skills、提示模板和主题，并通过 `pi install` 一键安装。
+面向 [Pi](https://pi.dev) 的开发工作流包，将需求澄清、临时规格、实施计划、条件式 TDD、系统调试、代码审查和代码流可视化组合成一套可按需加载的 Skills。
 
-> 当前阶段：项目初始化。安装后会注册 `/devflow` 命令和 `/skill:devflow` Skill，用于确认扩展与 Skill 已正确加载。
+## 能力
 
-## 特性
-
-- 遵循 Pi Package 的 `package.json#pi` 清单规范
-- TypeScript 扩展入口，无需预编译即可由 Pi 加载
-- 符合 Agent Skills 标准的 Skill 骨架
-- 支持 Git、本地路径以及后续 npm 发布安装
-- 已配置严格 TypeScript 类型检查
-- 为后续拆分命令、工具、事件与 UI 模块保留清晰入口
-
-## 环境要求
-
-- Node.js 20 或更高版本
-- Pi `@earendil-works/pi-coding-agent`
+- 先澄清设计，再进入实现
+- Spec 和 Plan 只作为临时工作材料，不污染长期文档
+- 仅把长期架构决策保留为 ADR
+- 按任务行为与回归风险决定是否使用 TDD
+- 调试时先复现和定位根因，再实施修复
+- 支持已提交范围和未提交工作区的只读代码审查
+- 基于真实调用关系生成可追溯到源码的交互流程图
 
 ## 安装
 
-### 从 GitHub 安装
-
-仓库发布后可直接执行：
+### GitHub
 
 ```bash
 pi install git:github.com/xuzhen97/pi-devflow
 ```
 
-也可以锁定到某个 tag 或 commit：
+锁定版本：
 
 ```bash
 pi install git:github.com/xuzhen97/pi-devflow@v0.1.0
 ```
 
-全局安装会写入 Pi 的用户设置。若只希望在当前项目中启用，请添加 `-l`：
+仅在当前项目启用：
 
 ```bash
 pi install git:github.com/xuzhen97/pi-devflow -l
 ```
 
-### 从本地仓库安装
-
-在本仓库的父目录中执行：
+### 本地仓库
 
 ```bash
 pi install ./pi-devflow
 ```
 
-或在任意位置使用绝对路径：
+也可以使用绝对路径：
 
 ```bash
 pi install /absolute/path/to/pi-devflow
 ```
 
-### 临时试用
+> Pi 扩展拥有当前用户的系统权限。安装第三方 Pi Package 前应先审查源码。
 
-无需写入 Pi 设置：
+## Skills
 
-```bash
-pi -e ./extensions/index.ts
-```
+Pi 会根据描述自动加载匹配的 Skill，也可以手动调用：
 
-也可以直接临时加载整个 Git 包：
+| Skill | 手动调用 | 用途 |
+| --- | --- | --- |
+| Brainstorming | `/skill:brainstorming` | 澄清需求、比较方案、批准设计并生成临时 Spec |
+| Writing Plans | `/skill:writing-plans` | 将已批准的 Spec 转换为临时实施计划，并逐任务选择测试策略 |
+| Executing Plans | `/skill:executing-plans` | 按计划逐项实现、验证和处理阻塞 |
+| Test-Driven Development | `/skill:test-driven-development` | 为具有真实行为回归风险的任务执行 Red-Green-Refactor |
+| Systematic Debugging | `/skill:systematic-debugging` | 复现故障、追踪根因、验证单一假设并实施回归修复 |
+| Code Reviewer | `/skill:code-reviewer` | 对 commit 范围或 staged、unstaged、untracked 工作区执行只读审查 |
+| Code Flow Visualizer | `/skill:code-flow-visualizer` | 分析真实调用链并生成可跳转源码的交互 HTML 流程图 |
 
-```bash
-pi -e git:github.com/xuzhen97/pi-devflow
-```
+修改 Skill 后，可在 Pi 中执行 `/reload` 重新发现资源。
 
-> Pi 扩展拥有当前用户的完整系统权限。安装任何第三方 Pi Package 前，请先审查其源码。
-
-## 使用
-
-启动 Pi：
-
-```bash
-pi
-```
-
-在交互界面中执行：
+扩展还提供状态检查命令：
 
 ```text
 /devflow
 ```
 
-看到 `Pi DevFlow is installed and ready.` 即表示扩展加载成功。
+## 技能关系
 
-Skill 当前配置为仅手动调用，避免尚未完成的占位工作流被模型自动加载：
+```mermaid
+flowchart TD
+    Request["需求或功能想法"] --> Brainstorming["brainstorming<br/>澄清需求与批准设计"]
+    Brainstorming --> Spec["临时 Spec<br/>.tmp/specs/"]
+    Spec --> ADRGate{"存在长期架构决策？"}
+    ADRGate -- "是" --> ADR["永久 ADR<br/>docs/adr/"]
+    ADRGate -- "否" --> Planning["writing-plans<br/>拆分实施任务"]
+    ADR --> Planning
+    Planning --> Plan["临时 Plan<br/>.tmp/plans/"]
+    Plan --> Execute["executing-plans<br/>逐项实施"]
+    Execute --> TDDGate{"当前任务适合 TDD？"}
+    TDDGate -- "是" --> TDD["test-driven-development<br/>Red → Green → Refactor"]
+    TDDGate -- "否" --> Verify["针对性验证<br/>类型、Schema、构建或引用检查"]
+    TDD --> Verify
+    Verify --> Review["code-reviewer<br/>只读审查"]
+    Review --> Result["代码 + 测试 + 适用 ADR"]
 
-```text
-/skill:devflow
+    Failure["Bug、失败测试或异常行为"] --> Debug["systematic-debugging<br/>复现 → 根因 → 单一假设"]
+    Debug --> RegressionGate{"存在可自动验证的行为？"}
+    RegressionGate -- "是" --> TDD
+    RegressionGate -- "否" --> Verify
+
+    Flow["code-flow-visualizer<br/>可选代码理解工具"] -. "提供现有调用链" .-> Brainstorming
+    Flow -. "辅助根因追踪" .-> Debug
+    Flow -. "辅助确认影响范围" .-> Review
 ```
 
-后续 Skill 内容稳定后，可以删除 `skills/devflow/SKILL.md` frontmatter 中的 `disable-model-invocation: true`，允许 Pi 根据描述自动选择该 Skill。
+关系说明：
 
-如果开发过程中修改了扩展或 Skill，可在 Pi 中执行 `/reload` 热重载自动发现的资源。
+- `brainstorming`、`writing-plans` 和 `executing-plans` 构成功能交付主路径。
+- `test-driven-development` 是逐任务选择的执行策略，不是所有任务的强制步骤。
+- `systematic-debugging` 是故障入口；确认根因后，有可测试行为时进入 TDD，否则使用合适的非测试验证。
+- `code-reviewer` 是实现后的质量门槛，不负责修改代码。
+- `code-flow-visualizer` 是可选的代码理解工具，可辅助设计、调试和审查，不阻塞主流程。
+
+## 文档生命周期
+
+```text
+.tmp/specs/   临时规格
+.tmp/plans/   临时实施计划
+docs/adr/     永久架构决策记录
+```
+
+规则：
+
+- `.tmp/` 已被 Git 忽略，不进入 npm 发布包。
+- Spec 和 Plan 是执行期间的工作记忆，完成后可以删除。
+- 代码和测试是实现行为的事实来源。
+- ADR 只保留长期约束系统边界、公共接口、数据、安全、基础依赖或部署方式的决策。
+- ADR 记录背景、决策、后果和主要替代方案，不复制 Spec 或 Plan。
+
+当前 ADR：
+
+- [`2026-08-26-temporary-specs-and-plans.md`](docs/adr/2026-08-26-temporary-specs-and-plans.md)
+- [`2026-08-26-conditional-tdd-by-task.md`](docs/adr/2026-08-26-conditional-tdd-by-task.md)
+
+## 条件式 TDD
+
+`writing-plans` 必须为每个任务声明测试策略：
+
+```markdown
+**Test strategy:** TDD: Required
+**Reason:** 该任务修改了解析分支，错误实现会产生可观察的错误结果。
+```
+
+或者：
+
+```markdown
+**Test strategy:** TDD: Not applicable
+**Reason:** 该任务只修改人工阅读的文档，不存在有意义的 Red/Green 行为周期。
+```
+
+通常需要 TDD：
+
+- 业务规则、分支、解析和状态转换
+- API、持久化、安全、并发和资金逻辑
+- Bug 修复及具有行为回归风险的重构
+
+通常不强制 TDD：
+
+- 人工阅读的文档和 ADR 文案
+- 不包含自定义运行逻辑的声明式元数据
+- 生成文件、格式化和精确机械修改
+
+不使用 TDD 仍必须提供适合的验证，例如类型检查、Schema 校验、构建、Lint、引用搜索或权威生成器检查。
+
+## 项目结构
+
+```text
+pi-devflow/
+├── docs/
+│   └── adr/                       # 永久架构决策
+├── extensions/
+│   └── index.ts                   # /devflow 状态命令
+├── skills/
+│   ├── brainstorming/
+│   ├── code-flow-visualizer/
+│   ├── code-reviewer/
+│   ├── executing-plans/
+│   ├── systematic-debugging/
+│   ├── test-driven-development/
+│   └── writing-plans/
+├── package.json
+├── README.md
+└── tsconfig.json
+```
+
+`package.json` 显式声明 Pi 资源：
+
+```json
+{
+  "pi": {
+    "extensions": ["./extensions/index.ts"],
+    "skills": ["./skills"]
+  }
+}
+```
 
 ## 本地开发
 
@@ -106,122 +198,21 @@ npm run check
 pi -e ./extensions/index.ts
 ```
 
-常用命令：
-
-| 命令 | 说明 |
-| --- | --- |
-| `npm install` | 安装开发依赖 |
-| `npm run check` | 执行 TypeScript 类型检查 |
-| `pi -e ./extensions/index.ts` | 临时加载扩展进行调试 |
-| `/skill:devflow` | 手动加载 DevFlow Skill |
-| `/reload` | 在 Pi 中重载扩展与其他资源 |
-
-## 项目结构
-
-```text
-pi-devflow/
-├── extensions/
-│   └── index.ts       # Pi 扩展入口
-├── skills/
-│   └── devflow/
-│       ├── SKILL.md   # Skill 入口与工作流说明
-│       ├── assets/    # 模板和静态资源（预留）
-│       ├── references/# 详细参考资料（预留）
-│       └── scripts/   # 可执行辅助脚本（预留）
-├── LICENSE
-├── package.json       # npm 元数据与 Pi Package 清单
-├── README.md
-└── tsconfig.json
-```
-
-当前显式声明的 Pi 清单：
-
-```json
-{
-  "pi": {
-    "extensions": ["./extensions/index.ts"],
-    "skills": ["./skills"]
-  }
-}
-```
-
-后续还可以增加以下资源：
-
-```text
-pi-devflow/
-├── prompts/           # 可复用 Markdown 提示模板
-└── themes/            # Pi 主题 JSON
-```
-
-并在 `package.json#pi` 中声明对应路径。Pi 也支持按约定自动发现资源目录，但显式清单更方便维护和审查。
-
-### Skill 骨架
-
-每个 Skill 使用独立目录，并以 `SKILL.md` 作为必需入口：
-
-```text
-skills/<skill-name>/
-├── SKILL.md
-├── scripts/
-├── references/
-└── assets/
-```
-
-`SKILL.md` 必须包含合法的 `name` 和明确的 `description`。其中 `description` 会影响 Pi 判断何时加载 Skill；辅助文件应使用相对于 Skill 目录的路径。当前 `.gitkeep` 文件用于让 Git 保留三个空目录。
-
-## 迭代建议
-
-为避免入口文件持续膨胀，新增能力时建议按职责拆分，例如：
-
-```text
-extensions/
-├── index.ts
-├── commands/
-├── tools/
-├── events/
-└── shared/
-```
-
-建议遵循以下原则：
-
-1. `extensions/index.ts` 只负责组装和注册能力。
-2. 运行时第三方依赖放入 `dependencies`，不要放在 `devDependencies`。
-3. Pi 提供的核心包放入 `peerDependencies`，并使用 `"*"` 范围。
-4. 长生命周期资源应在 `session_start` 后创建，并在 `session_shutdown` 中清理。
-5. 自定义工具输出必须限制大小，避免占满模型上下文。
-6. 新功能至少通过 `npm run check`，并用 `pi -e` 做一次加载验证。
-
-## 发布
-
-### Git 分发
-
-创建版本 tag 后，用户可锁定安装：
+发布前检查：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
-pi install git:github.com/xuzhen97/pi-devflow@v0.1.0
-```
-
-### npm 分发
-
-发布前请确认包名可用，并检查将要发布的内容：
-
-```bash
+npm run check
 npm pack --dry-run
-npm publish
 ```
 
-`pi-package` 关键字用于 Pi Package 的发现与展示。
-
-## 卸载与更新
+## 更新与卸载
 
 ```bash
 pi update git:github.com/xuzhen97/pi-devflow
 pi remove git:github.com/xuzhen97/pi-devflow
 ```
 
-卸载项目级安装时，在 `pi remove` 命令末尾添加 `-l`。
+项目级安装在命令末尾添加 `-l`。
 
 ## License
 
