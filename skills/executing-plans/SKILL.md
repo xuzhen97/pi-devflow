@@ -1,6 +1,6 @@
 ---
 name: executing-plans
-description: Use when an approved implementation plan, normally under .tmp/plans/, is ready to execute task-by-task with verification and blocker checkpoints.
+description: Use when the user asks to execute a temporary implementation Plan; review it read-only, summarize current scope and risk, and obtain final explicit confirmation before modifying implementation files.
 license: MIT; see LICENSE
 metadata:
   source: https://github.com/obra/superpowers
@@ -11,22 +11,46 @@ metadata:
 
 ## Overview
 
-Load an approved temporary plan, review it against the current code and applicable ADRs, execute it task-by-task, and verify the finished behavior. The plan guides the work; current code, tests, user decisions, and accepted ADRs take precedence when reality has changed.
+Load a temporary Plan, review it against current code and applicable ADRs, obtain a fresh execution confirmation, then execute it task-by-task and verify the finished behavior. The Plan guides the work; current code, tests, user decisions, and accepted ADRs take precedence when reality has changed.
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+<EXECUTION-GATE>
+Invocation is not execution authorization. Before the user confirms at the gate in Step 2, all repository access must remain read-only: do not update the Plan, tests, code, configuration, documentation, generated artifacts, or ADRs.
+
+Prior approval of a design, Spec, ADR, Plan, or a writing-plans handoff does not count. Even if the user originally requested "plan and implement," present the current reviewed scope and ask again immediately before editing. Only an unambiguous response to that execution question authorizes changes.
+</EXECUTION-GATE>
+
+**Announce at start:** `I'm using the executing-plans skill to review this Plan. I will ask for final confirmation before modifying files.`
 
 ## Step 1 — Locate and review the plan
 
 1. Use the plan path supplied by the user. Otherwise, inspect `.tmp/plans/` and use the only plan present.
 2. If multiple plans are present and the intended one is not clear, ask the user which to execute.
 3. Read the linked temporary spec and every applicable file in `docs/adr/`.
-4. Inspect the current Git status and relevant code before editing. Preserve unrelated user changes.
-5. Review the plan critically for stale paths, missing prerequisites, unsafe operations, conflicts with code, tests, project instructions, or ADRs.
-6. If the plan needs a material design change, stop and ask the user. For a harmless stale detail, use the current repository reality and note the adjustment in the plan.
+4. Inspect the current Git status and relevant code without editing. Preserve unrelated user changes.
+5. Review the Plan critically for stale paths, missing prerequisites, unsafe operations, conflicts with code, tests, project instructions, or ADRs.
+6. Do not fix even harmless Plan details yet; include them in the execution summary. If a material design change is needed, return to design review instead of asking to execute stale scope.
 
 Use the repository's existing branch or worktree. Do not create a worktree or switch branches unless the user or project requires it. Never discard, reset, overwrite, or commit user work without explicit approval.
 
-## Step 2 — Execute tasks
+## Step 2 — Obtain final execution confirmation
+
+After the read-only review, report:
+
+- exact Plan path
+- number of tasks and affected components/files
+- TDD versus verification-only tasks
+- detected stale details, unrelated working-tree changes, and notable risks
+- any separately gated operations explicitly excluded from execution, such as commit, push, migration, deployment, or ADR edits
+
+Then ask as the final line:
+
+> `Begin executing the reviewed Plan at <path>? (execute / not now)`
+
+STOP and wait. Do not call edit/write tools or run commands that mutate the repository in the same turn. If the response is unclear, ask again. If declined, do nothing.
+
+Once confirmed, authorization covers only the summarized Plan scope. A material scope or design change invalidates it: stop, explain the change, update the design/Plan only with the relevant confirmation, then request execution confirmation again.
+
+## Step 3 — Execute tasks
 
 For each task in order:
 
@@ -40,7 +64,7 @@ For each task in order:
 
 Do not mechanically follow a stale instruction when it conflicts with current code. Do not expand scope, create speculative abstractions, or perform unrelated refactoring. Do not create per-task commits unless the user asks.
 
-## Step 3 — Final verification
+## Step 4 — Final verification
 
 After all tasks are complete:
 
@@ -61,13 +85,14 @@ Stop and ask rather than guessing when:
 - an accepted ADR conflicts with the plan
 - a required dependency, credential, service, or environment is unavailable
 - a verification repeatedly fails for reasons not understood
-- proceeding would require data loss, destructive Git operations, schema migration, deployment, or other unapproved risk
-- the required fix materially changes the approved design or scope
+- proceeding would require data loss, destructive Git operations, schema migration, deployment, ADR creation/update, or other separately gated risk
+- the required fix materially changes the approved design or confirmed execution scope
 
-A routine implementation detail that is already implied by the approved behavior is not a reason to stop.
+A routine implementation detail already implied by the confirmed behavior is not a reason to stop. Commit, push, merge, deployment, destructive cleanup, and ADR changes always require their own explicit approval.
 
 ## Definition of done
 
+- [ ] Final execution confirmation was obtained after the read-only Plan review
 - [ ] Every planned task is complete or explicitly deferred by the user
 - [ ] Focused checks pass
 - [ ] Relevant repository-wide checks pass

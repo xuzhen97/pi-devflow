@@ -4,9 +4,10 @@
 
 ## 能力
 
-- 先澄清设计，再进入实现
+- 先澄清并确认设计，再单独确认是否生成 Spec、ADR 和 Plan
+- 执行前展示当前计划范围并再次获得明确确认，避免直接修改代码
 - Spec 和 Plan 只作为临时工作材料，不污染长期文档
-- 仅把长期架构决策保留为 ADR
+- 仅在用户确认后把长期架构决策保留为 ADR
 - 按任务行为与回归风险决定是否使用 TDD
 - 调试时先复现和定位根因，再实施修复
 - 支持已提交范围和未提交工作区的只读代码审查
@@ -52,9 +53,9 @@ Pi 会根据描述自动加载匹配的 Skill，也可以手动调用：
 
 | Skill | 手动调用 | 用途 |
 | --- | --- | --- |
-| Brainstorming | `/skill:brainstorming` | 澄清需求、比较方案、批准设计并生成临时 Spec |
-| Writing Plans | `/skill:writing-plans` | 将已批准的 Spec 转换为临时实施计划，并逐任务选择测试策略 |
-| Executing Plans | `/skill:executing-plans` | 按计划逐项实现、验证和处理阻塞 |
+| Brainstorming | `/skill:brainstorming` | 澄清并确认设计；分别询问是否生成 Spec、ADR 和 Plan，不修改实现代码 |
+| Writing Plans | `/skill:writing-plans` | 经确认后生成临时 Plan并逐任务选择测试策略；完成后停止并询问是否执行 |
+| Executing Plans | `/skill:executing-plans` | 先只读审查 Plan 和当前仓库，再经最终确认逐项实现和验证 |
 | Test-Driven Development | `/skill:test-driven-development` | 为具有真实行为回归风险的任务执行 Red-Green-Refactor |
 | Systematic Debugging | `/skill:systematic-debugging` | 复现故障、追踪根因、验证单一假设并实施回归修复 |
 | Code Reviewer | `/skill:code-reviewer` | 对 commit 范围或 staged、unstaged、untracked 工作区执行只读审查 |
@@ -72,20 +73,43 @@ Pi 会根据描述自动加载匹配的 Skill，也可以手动调用：
 
 ```mermaid
 flowchart TD
-    Request["需求或功能想法"] --> Brainstorming["brainstorming<br/>澄清需求与批准设计"]
-    Brainstorming --> Spec["临时 Spec<br/>.tmp/specs/"]
-    Spec --> ADRGate{"存在长期架构决策？"}
-    ADRGate -- "是" --> ADR["永久 ADR<br/>docs/adr/"]
-    ADRGate -- "否" --> Planning["writing-plans<br/>拆分实施任务"]
-    ADR --> Planning
+    Request["需求或功能想法"] --> Brainstorming["brainstorming<br/>只读探索与设计"]
+    Brainstorming --> DesignGate{"用户批准设计？"}
+    DesignGate -- "修改" --> Brainstorming
+    DesignGate -- "批准" --> SpecGate{"用户确认生成 Spec？"}
+    SpecGate -- "生成" --> Spec["临时 Spec<br/>.tmp/specs/"]
+    Spec --> SpecReview{"用户批准 Spec 内容？"}
+    SpecReview -- "修改" --> Spec
+    SpecReview -- "批准" --> ADRCheck{"存在长期架构决策？"}
+    SpecGate -- "跳过" --> ADRCheck
+
+    ADRCheck -- "有" --> ADRGate{"用户确认写 ADR？"}
+    ADRGate -- "写入" --> ADR["永久 ADR<br/>docs/adr/"]
+    ADRGate -- "跳过" --> NextAction{"多步骤工作需要 Plan？"}
+    ADRCheck -- "无" --> NextAction
+    ADR --> NextAction
+
+    NextAction -- "需要" --> PlanGate{"用户确认生成 Plan？"}
+    NextAction -- "Bounded" --> BoundedGate{"用户确认执行已批准设计？"}
+    BoundedGate -- "执行" --> Task
+    BoundedGate -- "暂不" --> Stop
+
+    PlanGate -- "生成" --> Planning["writing-plans<br/>只写临时计划"]
+    PlanGate -- "暂不" --> Stop["停止，等待用户"]
     Planning --> Plan["临时 Plan<br/>.tmp/plans/"]
-    Plan --> Execute["executing-plans<br/>逐项实施"]
-    Execute --> TDDGate{"当前任务适合 TDD？"}
+    Plan --> HandoffGate{"用户确认交给执行流程？"}
+    HandoffGate -- "暂不" --> Stop
+    HandoffGate -- "确认" --> ReadOnlyReview["executing-plans<br/>只读审查当前范围与风险"]
+    ReadOnlyReview --> ExecuteGate{"用户最终确认执行？"}
+    ExecuteGate -- "暂不" --> Stop
+    ExecuteGate -- "执行" --> Task["逐项修改与验证"]
+
+    Task --> TDDGate{"当前任务适合 TDD？"}
     TDDGate -- "是" --> TDD["test-driven-development<br/>Red → Green → Refactor"]
     TDDGate -- "否" --> Verify["针对性验证<br/>类型、Schema、构建或引用检查"]
     TDD --> Verify
     Verify --> Review["code-reviewer<br/>只读审查"]
-    Review --> Result["代码 + 测试 + 适用 ADR"]
+    Review --> Result["代码 + 测试 + 经确认的 ADR"]
 
     Failure["Bug、失败测试或异常行为"] --> Debug["systematic-debugging<br/>复现 → 根因 → 单一假设"]
     Debug --> RegressionGate{"存在可自动验证的行为？"}
@@ -99,7 +123,11 @@ flowchart TD
 
 关系说明：
 
-- `brainstorming`、`writing-plans` 和 `executing-plans` 构成功能交付主路径。
+- `brainstorming` 只负责探索与设计；设计批准、生成 Spec、写 ADR、生成 Plan 是互不继承的独立确认。
+- `writing-plans` 只能创建临时 Plan。完成后必须停止、总结范围并询问是否交给执行流程。
+- `executing-plans` 先做只读时效性审查，再展示任务、风险和工作区状态；用户最终确认前不得修改任何文件。
+- “请实现”“继续”或前一阶段的批准不能提前授权后续动作；每个确认只对当前明确询问的动作有效。
+- 执行中出现实质性设计或范围变化时，原执行授权失效，必须回到相应确认门。
 - `test-driven-development` 是逐任务选择的执行策略，不是所有任务的强制步骤。
 - `systematic-debugging` 是故障入口；确认根因后，有可测试行为时进入 TDD，否则使用合适的非测试验证。
 - `code-reviewer` 是实现后的质量门槛，不负责修改代码。

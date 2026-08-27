@@ -1,6 +1,6 @@
 ---
 name: writing-plans
-description: Use when an approved spec or requirements describe a multi-step implementation task and a concrete, temporary execution plan is needed before touching code.
+description: Use after the user explicitly confirms generation of a temporary implementation Plan; write and review the Plan without modifying implementation files, then ask separately whether to execute it.
 license: MIT; see LICENSE
 metadata:
   source: https://github.com/obra/superpowers
@@ -13,9 +13,19 @@ metadata:
 
 Write concrete implementation plans for an engineer with little context: which files to touch, the required behavior, interfaces, test strategy, and verification commands. Keep tasks independently verifiable and include code only where it removes real ambiguity. DRY. YAGNI. Decide TDD per task instead of forcing it globally.
 
-The plan is temporary execution scaffolding, not permanent documentation. The implemented code and tests are authoritative; lasting architectural decisions belong in `docs/adr/`.
+The Plan is temporary execution scaffolding, not permanent documentation. The implemented code and tests are authoritative; lasting architectural decisions belong in `docs/adr/`.
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+<PLAN-GATE>
+Writing a Plan and executing it are separate actions.
+
+- Before creating the Plan, verify that the user explicitly confirmed Plan generation in the current workflow. If not, ask `Generate a temporary implementation Plan for this approved design? (generate / not now)` and STOP.
+- While planning, implementation files are read-only. You may inspect code and write only the confirmed Plan under `.tmp/plans/`.
+- After saving and reviewing the Plan, summarize it, ask whether to execute that exact Plan, and STOP.
+- Never invoke `executing-plans`, edit implementation files, or start Task 1 in the same turn as Plan creation or the execution question.
+- Design, Spec, ADR, or Plan approval does not authorize execution. A broad earlier request to "plan and implement" does not bypass the execution gate.
+</PLAN-GATE>
+
+**Announce at start:** `I'm using the writing-plans skill to create the implementation Plan only; implementation requires separate confirmation.`
 
 **Context:** Use the repository's normal branch or worktree workflow. Do not create an isolated worktree unless the user or project requires one.
 
@@ -80,7 +90,9 @@ Do not add per-task commit steps unless the user explicitly asks for that workfl
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For implementation:** Execute this plan task-by-task using the available development workflow. Steps use checkbox (`- [ ]`) syntax for temporary progress tracking.
+> **Execution gate:** This Plan is not authorization to modify implementation files. After read-only review, `executing-plans` must obtain explicit user confirmation before Task 1.
+>
+> Steps use checkbox (`- [ ]`) syntax for temporary progress tracking.
 
 **Goal:** [One sentence describing what this builds]
 
@@ -201,10 +213,18 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
 
-## Execution Handoff
+## Execution Confirmation Handoff
 
-After saving the plan, say:
+After saving and self-reviewing the Plan:
 
-> "Plan complete and saved to `.tmp/plans/<filename>.md`. It is temporary and will not be committed. Ready to execute it task-by-task with the executing-plans workflow, or I can hand it off if you prefer."
+1. Report its exact path.
+2. Summarize task count, affected areas, test strategy, and notable risks in a few lines.
+3. Ask this as the final line:
 
-Use the executing-plans skill when available. Use subagents only when they materially help; otherwise implement inline. After implementation and verification, the plan may be deleted. Never promote the plan into permanent documentation—update code, tests, and any applicable ADR instead.
+> `Execute the reviewed Plan at .tmp/plans/<filename>.md? (execute / not now)`
+
+4. STOP and wait. Do not invoke `executing-plans` in that turn.
+
+If confirmed, invoke `executing-plans`; that workflow performs its own read-only freshness review and asks for final execution confirmation before any implementation edit. This deliberate second confirmation ensures the user sees current scope and risk immediately before changes begin.
+
+If declined or unclear, leave the Plan in place and do nothing. After separately confirmed implementation and verification, it may be deleted. Never promote the Plan into permanent documentation—update code, tests, and any separately approved ADR instead.
