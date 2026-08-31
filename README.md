@@ -47,6 +47,28 @@ pi install /absolute/path/to/pi-devflow
 
 > Pi 扩展拥有当前用户的系统权限。安装第三方 Pi Package 前应先审查源码。
 
+## DeepSeek Harness
+
+`pi-devflow` 也可以作为 DeepSeek Harness 的全局 Skill 包安装：
+
+```bash
+dsh plugin --profile global add pi-devflow
+```
+
+安装完成或首次启动已安装该 Bundle 的 DSH Profile 后，Skill 会同步到：
+
+```text
+${DSH_HOME:-~/.dsh}/skills/
+```
+
+`global` 是用于安装用户级 Skill 的 DSH Profile 名称；Skill 的全局可见性来自 `DSH_HOME/skills/`，不是某个 Profile 的运行时范围。所有使用同一 `DSH_HOME` 的 DSH Profile 和项目都会通过内置 filesystem Skill Provider 发现这些 Skill。
+
+- 未设置 `DSH_HOME` 时，目标目录默认为 `~/.dsh/skills/`。
+- 再次运行同一条命令可以升级已安装的 Skill；如果包管理器跳过安装脚本，下一次 DSH 启动会自动补做同步。
+- 安装包会执行受信任的同步脚本；安装前请审查包源码和权限。
+- Pi 与 DSH 共用仓库中的同一份 `skills/` 源文件，不需要手动复制第二份。
+- `extensions/index.ts` 和 `/devflow` 是 Pi 专用能力，不会在 DSH 中注册同名命令。
+
 ## Skills
 
 Pi 会根据描述自动加载匹配的 Skill，也可以手动调用：

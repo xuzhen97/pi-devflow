@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "description": "A lightweight, extensible development workflow package for Pi.",
   "type": "module",
+  "main": "./dsh/index.mjs",
+  "exports": {
+    ".": "./dsh/index.mjs",
+    "./dsh": "./dsh/index.mjs",
+    "./package.json": "./package.json"
+  },
   "license": "MIT",
   "author": "xuzhen97",
   "repository": {
@@ -21,6 +27,7 @@
     "workflow"
   ],
   "files": [
+    "dsh/",
     "extensions/",
     "skills/",
     "docs/adr/",
@@ -28,7 +35,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "postinstall": "node ./dsh/install.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./dsh/cordis.patch.yml"
+    }
   },
   "pi": {
     "extensions": [
