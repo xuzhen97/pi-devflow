@@ -49,10 +49,29 @@ pi install /absolute/path/to/pi-devflow
 
 ## DeepSeek Harness
 
-`pi-devflow` 也可以作为 DeepSeek Harness 的全局 Skill 包安装：
+`pi-devflow` 也可以作为 DeepSeek Harness 的全局 Skill 包安装。本包尚未发布到 npm，安装时请给出 GitHub 地址，而不是裸包名：
 
 ```bash
-dsh plugin --profile global add pi-devflow
+dsh plugin --profile global add github:xuzhen97/pi-devflow
+```
+
+需要锁定版本时追加 `#<commit 或 tag>`，例如 `github:xuzhen97/pi-devflow#cd11e21`。
+
+`dsh plugin` 会把参数转发给该 Profile 目录下的 pnpm。本包通过 `prepare`/`postinstall` 执行同步，而 pnpm 默认拦截依赖的构建脚本，因此首次安装可能以 `ERR_PNPM_IGNORED_BUILDS` 结束（此时包已就位，只是同步未执行）。按它打印的提示放行后重跑一次即可：
+
+```yaml
+# <DSH_HOME>/profiles/<profile>/pnpm-workspace.yaml
+allowBuilds:
+  "pi-devflow@https://codeload.github.com/xuzhen97/pi-devflow/tar.gz/<commit>": true
+```
+
+放行的键与提交绑定，上游发布新提交后需要重新放行；也可以在该 Profile 目录执行 `pnpm approve-builds` 交互式放行。
+
+不希望包管理器参与构建时，可以直接使用仓库内的同步脚本：
+
+```bash
+git clone https://github.com/xuzhen97/pi-devflow
+node pi-devflow/dsh/install.mjs
 ```
 
 安装完成或首次启动已安装该 Bundle 的 DSH Profile 后，Skill 会同步到：
@@ -64,7 +83,9 @@ ${DSH_HOME:-~/.dsh}/skills/
 `global` 是用于安装用户级 Skill 的 DSH Profile 名称；Skill 的全局可见性来自 `DSH_HOME/skills/`，不是某个 Profile 的运行时范围。所有使用同一 `DSH_HOME` 的 DSH Profile 和项目都会通过内置 filesystem Skill Provider 发现这些 Skill。
 
 - 未设置 `DSH_HOME` 时，目标目录默认为 `~/.dsh/skills/`。
-- 再次运行同一条命令可以升级已安装的 Skill；如果包管理器跳过安装脚本，下一次 DSH 启动会自动补做同步。
+- 再次运行同一条命令可以升级已安装的 Skill；如果包管理器跳过了安装脚本，且该 Profile 会实际启动并已启用本 Bundle，DSH 启动时会自动补做同步（只有会启动的 Profile 才会触发；`global` 这类仅用于承载 Skill 的 Profile 不在此列）。
+- 同步以 `${DSH_HOME}/skills/.pi-devflow-manifest.json` 记账：目标目录中若存在同名但不属于本包的 Skill，同步会报冲突并整体回滚，需先移除或改名。
+- 验证安装：`node <profile>/node_modules/pi-devflow/dsh/self-check.mjs`，期望输出 `pi-devflow dsh synchronizer self-check passed`。
 - 安装包会执行受信任的同步脚本；安装前请审查包源码和权限。
 - Pi 与 DSH 共用仓库中的同一份 `skills/` 源文件，不需要手动复制第二份。
 - `extensions/index.ts` 和 `/devflow` 是 Pi 专用能力，不会在 DSH 中注册同名命令。
