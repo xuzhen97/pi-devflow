@@ -49,23 +49,31 @@ pi install /absolute/path/to/pi-devflow
 
 ## DeepSeek Harness
 
-`pi-devflow` 也可以作为 DeepSeek Harness 的全局 Skill 包安装。本包尚未发布到 npm，安装时请给出 GitHub 地址，而不是裸包名：
+`pi-devflow` 也可以作为 DeepSeek Harness 的全局 Skill 包安装。本包尚未发布到 npm，安装时必须给出 GitHub 地址，而不是裸包名：
 
 ```bash
-dsh plugin --profile global add github:xuzhen97/pi-devflow
+dsh plugin --profile <profile> add github:xuzhen97/pi-devflow
 ```
 
-需要锁定版本时追加 `#<commit 或 tag>`，例如 `github:xuzhen97/pi-devflow#cd11e21`。
+`<profile>` 填你实际会启动的那个 Profile（Web 界面即 `web`）。Skill 的可见性来自 `DSH_HOME/skills/`，与承载它的 Profile 无关；Profile 只决定两件事：包安装在哪个 `node_modules` 下，以及该 Profile 启动时会不会自动补做同步。
 
-`dsh plugin` 会把参数转发给该 Profile 目录下的 pnpm。本包通过 `prepare`/`postinstall` 执行同步，而 pnpm 默认拦截依赖的构建脚本，因此首次安装可能以 `ERR_PNPM_IGNORED_BUILDS` 结束（此时包已就位，只是同步未执行）。按它打印的提示放行后重跑一次即可：
+需要锁定版本时追加 `#<commit 或 tag>`，例如 `github:xuzhen97/pi-devflow#<commit>`。
 
-```yaml
-# <DSH_HOME>/profiles/<profile>/pnpm-workspace.yaml
-allowBuilds:
-  "pi-devflow@https://codeload.github.com/xuzhen97/pi-devflow/tar.gz/<commit>": true
-```
+### 安装脚本被拦截时
 
-放行的键与提交绑定，上游发布新提交后需要重新放行；也可以在该 Profile 目录执行 `pnpm approve-builds` 交互式放行。
+`dsh plugin` 会把参数转发给该 Profile 目录下的 pnpm。本包通过 `prepare`/`postinstall` 执行同步，而 pnpm 默认拦截依赖的构建脚本，因此安装可能以 `ERR_PNPM_IGNORED_BUILDS` 结束——此时包已就位，只是同步没有执行。任选一种处理：
+
+1. 让 Profile 启动时补做：确认包名在 `<profile>/package.json` 的 `dsh.profile.bundles` 中，重启 DSH 即可。该方式与提交无关，适合长期使用，但只有会启动的 Profile 才会触发。
+2. 直接补跑一次同步：`node <profile>/node_modules/pi-devflow/dsh/install.mjs`。
+3. 按 pnpm 打印的提示把放行键写进该 Profile 的 `pnpm-workspace.yaml`，再重跑一次安装：
+
+   ```yaml
+   # <DSH_HOME>/profiles/<profile>/pnpm-workspace.yaml
+   allowBuilds:
+     "pi-devflow@https://codeload.github.com/xuzhen97/pi-devflow/tar.gz/<commit>": true
+   ```
+
+   放行键与 pnpm 解析到的提交绑定，**每次新提交后都会失效**，需要重新放行（也可在该 Profile 目录执行 `pnpm approve-builds`）。
 
 不希望包管理器参与构建时，可以直接使用仓库内的同步脚本：
 
@@ -80,7 +88,7 @@ node pi-devflow/dsh/install.mjs
 ${DSH_HOME:-~/.dsh}/skills/
 ```
 
-`global` 是用于安装用户级 Skill 的 DSH Profile 名称；Skill 的全局可见性来自 `DSH_HOME/skills/`，不是某个 Profile 的运行时范围。所有使用同一 `DSH_HOME` 的 DSH Profile 和项目都会通过内置 filesystem Skill Provider 发现这些 Skill。
+Skill 的全局可见性来自 `DSH_HOME/skills/`，不是某个 Profile 的运行时范围。所有使用同一 `DSH_HOME` 的 DSH Profile 和项目都会通过内置 filesystem Skill Provider 发现这些 Skill。
 
 - 未设置 `DSH_HOME` 时，目标目录默认为 `~/.dsh/skills/`。
 - 再次运行同一条命令可以升级已安装的 Skill；如果包管理器跳过了安装脚本，且该 Profile 会实际启动并已启用本 Bundle，DSH 启动时会自动补做同步（只有会启动的 Profile 才会触发；`global` 这类仅用于承载 Skill 的 Profile 不在此列）。
